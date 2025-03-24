@@ -115,7 +115,8 @@ def match_answers(ground_truth: str, model_answer: str) -> bool:
     answer_type = identify_answer_type(gt)
     
     if answer_type == 'YN':
-        return gt == pred or (gt in pred)
+        # return gt == pred or (gt in pred)
+        return gt == pred
     
     elif answer_type == 'NUMBER':
         return gt == pred
@@ -173,14 +174,14 @@ def compute_score(solution_str: str,
     answer_score = 0
     if format_correct and answer_text:
         print(f"\n[Content Validation]")
-        print(f"  Expected: {ground_truth}")
-        print(f"  Predicted: {answer_text}")
+        print(f"  Expected: {normalize_answer(ground_truth)}")
+        print(f"  Predicted: {normalize_answer(answer_text)}")
         
         if match_answers(ground_truth, answer_text):
-            answer_score = answer_reward
+            answer_score = 2
             print("  Content validation: FULL MATCH")
         else:
-            answer_score = -answer_reward
+            answer_score = -1.5
             print("  Content validation: MISMATCH")
     else:
         answer_score = -2
