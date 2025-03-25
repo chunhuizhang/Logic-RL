@@ -51,5 +51,5 @@ for MODEL_NAME in "${MODEL_NAMES[@]}"; do
         trainer.default_hdfs_dir=null \
         trainer.save_freq=50 \
         trainer.test_freq=5 \
-        trainer.total_epochs=3 $@ 2>&1 | tee grpo_${MODEL_NAME}_${ROLLOUT_N}_${DATE}.log
+        trainer.total_epochs=3 $@ 2>&1 | tee grpo_$(basename $MODEL_NAME)_${ROLLOUT_N}_${DATE}.log
 done
