@@ -5,6 +5,8 @@ set -x
 source ~/anaconda3/etc/profile.d/conda.sh
 conda activate casual
 
+ray stop
+
 DATE=$(date +%Y%m%d)
 export VLLM_ATTENTION_BACKEND=XFORMERS
 
