@@ -9,6 +9,7 @@
     - subjective question (FA/FO).
 
 
+- ？拓扑顺序是否只有一种；
 
 ```
 (main_task pid=63259) [Content Validation]
@@ -48,6 +49,23 @@ Expected: [{'a', 'b'}]
 Predicted: the frontdoor adjustment set for treatment t and outcome p in the given dag is {a, b}. variables a and b are both directed towa
 rds p (a->p, b->p) and towards t (a->t, b->t), and they are not descendants of t. adjusting for a and b will allow us to estimate the causal effect of t on p with
 out confounding bias
+Content validation: MISMATCH
+
+
+Expected: {'s'}
+Predicted: s
+Content validation: MISMATCH
+
+Expected: {'x', 'j', 'r'}
+Predicted: j, r, x
+Content validation: MISMATCH
+
+
+
+#??
+Expected: dag with nodes k, m, i, u, f, z, j, a and directed edges z->j, u->a, f->j, k->m, u->i, i->k, u->z, j->a, i->j
+Expected: g->x->g
+Predicted: x->g, g->x
 Content validation: MISMATCH
 
 ```

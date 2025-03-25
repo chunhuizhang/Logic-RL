@@ -94,23 +94,18 @@ def match_answers(ground_truth: str, model_answer: str, question_type: str) -> b
         pred_match = re.match(yn_pattern, pred)
         
         if gt_match and pred_match:
-            print(gt_match.group(1), pred_match.group(1))
-            return gt_match.group(1) == pred_match.group(1)
-        return gt == pred
-    
+            return gt, pred, gt_match.group(1) == pred_match.group(1)
+        return gt, pred, gt == pred
     
     elif question_type == 'HM':
         # Extract numbers from answers for How Many questions
         gt_numbers = re.findall(r'\d+', gt)
         pred_numbers = re.findall(r'\d+', pred)
-        
-        # Check if we found numbers in both answers
+
         if gt_numbers and pred_numbers:
-            print(gt_numbers[0], pred_numbers[0])
-            return gt_numbers[0] == pred_numbers[0]  # Compare the first number found
+            return gt_numbers, pred_numbers, gt_numbers[0] == pred_numbers[0]  # Compare the first number found
         
-        # Fall back to exact matching if no numbers found
-        return gt == pred
+        return gt, pred, gt == pred
     
     elif question_type == 'MC':
         # Extract choice letter/number for multiple choice questions
@@ -120,43 +115,83 @@ def match_answers(ground_truth: str, model_answer: str, question_type: str) -> b
         
         # If both contain choice identifiers, compare them
         if gt_match and pred_match:
-            print(gt_match.group(1), pred_match.group(1))
-            return gt_match.group(1) == pred_match.group(1)
+            return gt, pred, gt_match.group(1) == pred_match.group(1)
             
         # Check if the answer is the full choice identifier (e.g., "b.")
         pred_option = re.match(r'^([a-f]|[1-6])[.)]', pred)
         if gt_match and pred_option:
-            print(gt_match.group(1), pred_option.group(1))
-            return gt_match.group(1) == pred_option.group(1)
+            return gt, pred, gt_match.group(1) == pred_option.group(1)
             
         # Fall back to exact matching
-        return gt == pred
+        return gt, pred, gt == pred
     
     elif question_type in ['FA', 'FO']:
-        # Convert string sets to actual sets for comparison
-        try:
-            gt_set = set(eval(gt))
-            pred_set = set(eval(pred))
-            return gt_set == pred_set 
-        except:
-            # Normalize graph representation
-            def normalize_graph(g: str) -> str:
-                # Remove spaces and convert to lowercase
-                g = ''.join(g.split()).lower()
-                # Sort multiple paths if it's a list
-                if g.startswith('[') and g.endswith(']'):
-                    try:
-                        paths = eval(g)
-                        return str(sorted(paths))
-                    except:
-                        return g
-                return g
-            try:
-                return normalize_graph(gt) == normalize_graph(pred)
-            except:
-                return False
-    
-    return gt == pred
+        def normalize_set(text):
+            text = text.strip().lower()
+            elements = set()
+            
+            # 特殊处理嵌套格式 [{'a', 'b'}]
+            if text.startswith("[{") and text.endswith("}]"):
+                inner_content = text[2:-2].strip()
+                for item in re.split(r',\s*', inner_content):
+                    clean_item = item.strip().strip("'\"")
+                    if clean_item:
+                        elements.add(clean_item)
+                return elements
+            
+            # 处理单个集合 {'a', 'b'}
+            if text.startswith("{") and text.endswith("}"):
+                content = text[1:-1].strip()
+                for item in re.split(r',\s*', content):
+                    clean_item = item.strip().strip("'\"")
+                    if clean_item:
+                        elements.add(clean_item)
+                return elements
+                
+            # 处理花括号嵌入在文本中的情况
+            set_match = re.search(r'\{([^{}]*)\}', text)
+            if set_match:
+                content = set_match.group(1).strip()
+                for item in re.split(r',\s*', content):
+                    clean_item = item.strip()
+                    if clean_item:
+                        elements.add(clean_item)
+                return elements
+            
+            # 特殊处理 FO 类型问题，提取单字符节点
+            if question_type == 'FO':
+                # 提取所有单个字母/数字作为节点
+                nodes = re.findall(r'\b([a-z]|[0-9])\b', text)
+                if nodes:
+                    return set(nodes)
+                
+            # 处理简单的逗号分隔列表
+            if ',' in text:
+                for item in text.split(','):
+                    clean_item = item.strip()
+                    if clean_item:
+                        # 对于FO类型，尝试提取单字符
+                        if question_type == 'FO':
+                            match = re.search(r'\b([a-z]|[0-9])\b', clean_item)
+                            if match:
+                                elements.add(match.group(1))
+                        else:
+                            elements.add(clean_item)
+                return elements
+
+            # 单个元素的情况
+            if question_type == 'FO':
+                match = re.search(r'\b([a-z]|[0-9])\b', text)
+                if match:
+                    return {match.group(1)}
+            
+            return {text.strip()}
+                
+        # 规范化答案
+        gt_processed = normalize_set(gt)
+        pred_processed = normalize_set(pred)
+        return gt_processed, pred_processed, gt_processed == pred_processed
+    return gt, pred, gt == pred
 
 def compute_score(solution_str: str, 
                  ground_truth: Dict[str, str],
@@ -183,10 +218,12 @@ def compute_score(solution_str: str,
     answer_score = 0
     if format_correct and answer_text:
         print(f"\n[Content Validation]")
-        print(f"  Expected: {normalize_answer(gt_answer)}")
-        print(f"  Predicted: {normalize_answer(answer_text)}")
-        
-        if match_answers(gt_answer, answer_text, gt_question_type):
+
+        gt, pred, is_match = match_answers(gt_answer, answer_text, gt_question_type)
+        print(f"  Expected: {gt}")
+        print(f"  Predicted: {pred}")
+       
+        if is_match:
             answer_score = 2
             print("  Content validation: FULL MATCH")
         else:
@@ -208,12 +245,21 @@ def compute_score(solution_str: str,
 
 if __name__ == "__main__":
     # YN
-    assert match_answers('yes', 'yes, c is a node in the graph. there is an edge c->o, which means there is a directed edge from c to o', 'YN')
-    assert match_answers('no', 'no, x->h is not an edge of this graph', 'YN')
+    assert match_answers('yes', 'yes, c is a node in the graph. there is an edge c->o, which means there is a directed edge from c to o', 'YN')[2]
+    assert match_answers('no', 'no, x->h is not an edge of this graph', 'YN')[2]
 
     # HM
-    assert match_answers('7', 'the graph has 7 nodes', 'HM')
+    assert match_answers('7', 'the graph has 7 nodes', 'HM')[2]
 
     # MC
-    assert match_answers('a', 'a. the graph has 7 nodes', 'MC')
+    assert match_answers('a', 'a. the graph has 7 nodes', 'MC')[2]
+    
+    # FA/FO tests
+    assert match_answers("{'r', 'l'}", "the maximal valid backdoor adjustment set for treatment s and outcome g in this admg is {l, r}. this set blocks all backdoor paths from s to g.", 'FA')[2]
+    assert match_answers("{'x', 'j', 'r'}", "{j, r, x}", 'FA')[2]
+    assert match_answers("[{'a', 'b'}]", "the frontdoor adjustment set for treatment t and outcome p in the given dag is {a, b}. variables a and b are both directed towards p (a->p, b->p) and towards t (a->t, b->t), and they are not descendants of t.", 'FA')[2]
+    assert match_answers("{'s'}", "s", 'FA')[2]
+    assert match_answers("{'x', 'j', 'r'}", "j, r, x", 'FA')[2]
+    assert match_answers("j, n, k, t, w", "one valid topological ordering of the graph is: j, n, k, t, w", 'FO')[2]
+    assert match_answers("h, k, d, q, f, u", "one valid topological ordering of the graph is: h, d, k, f, q, u", 'FO')[2]
     
