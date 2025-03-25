@@ -100,9 +100,36 @@ def match_answers(ground_truth: str, model_answer: str, question_type: str) -> b
     
     
     elif question_type == 'HM':
+        # Extract numbers from answers for How Many questions
+        gt_numbers = re.findall(r'\d+', gt)
+        pred_numbers = re.findall(r'\d+', pred)
+        
+        # Check if we found numbers in both answers
+        if gt_numbers and pred_numbers:
+            print(gt_numbers[0], pred_numbers[0])
+            return gt_numbers[0] == pred_numbers[0]  # Compare the first number found
+        
+        # Fall back to exact matching if no numbers found
         return gt == pred
     
     elif question_type == 'MC':
+        # Extract choice letter/number for multiple choice questions
+        mc_pattern = r'^([a-f]|[1-6])'  # Match a-e or 1-5 at the beginning
+        gt_match = re.match(mc_pattern, gt)
+        pred_match = re.match(mc_pattern, pred)
+        
+        # If both contain choice identifiers, compare them
+        if gt_match and pred_match:
+            print(gt_match.group(1), pred_match.group(1))
+            return gt_match.group(1) == pred_match.group(1)
+            
+        # Check if the answer is the full choice identifier (e.g., "b.")
+        pred_option = re.match(r'^([a-f]|[1-6])[.)]', pred)
+        if gt_match and pred_option:
+            print(gt_match.group(1), pred_option.group(1))
+            return gt_match.group(1) == pred_option.group(1)
+            
+        # Fall back to exact matching
         return gt == pred
     
     elif question_type in ['FA', 'FO']:
@@ -180,5 +207,13 @@ def compute_score(solution_str: str,
     return total_score
 
 if __name__ == "__main__":
+    # YN
     assert match_answers('yes', 'yes, c is a node in the graph. there is an edge c->o, which means there is a directed edge from c to o', 'YN')
     assert match_answers('no', 'no, x->h is not an edge of this graph', 'YN')
+
+    # HM
+    assert match_answers('7', 'the graph has 7 nodes', 'HM')
+
+    # MC
+    assert match_answers('a', 'a. the graph has 7 nodes', 'MC')
+    

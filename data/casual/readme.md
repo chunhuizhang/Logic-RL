@@ -23,3 +23,31 @@ r, and p, which is the same as in the original graph. similarly, for node h, the
 aph
 (main_task pid=63259)   Content validation: MISMATCH
 ```
+
+
+```
+对于 FO/FA 的问题
+Expected: j, n, k, t, w
+Predicted: one valid topological ordering of the graph is: j, n, k, t, w
+Content validation: MISMATCH
+
+Expected: h, k, d, q, f, u
+Predicted: one valid topological ordering of the graph is: h, d, k, f, q, u
+Content validation: MISMATCH
+
+Expected: {'r', 'l'}
+Predicted: the maximal valid backdoor adjustment set for treatment s and outcome g in this admg is {l, r}. this set blocks all backdoor paths from s to g.
+Content validation: MISMATCH
+
+Expected: {'x', 'j', 'r'}
+Predicted: {j, r, x}
+Content validation: MISMATCH
+
+
+Expected: [{'a', 'b'}]
+Predicted: the frontdoor adjustment set for treatment t and outcome p in the given dag is {a, b}. variables a and b are both directed towa
+rds p (a->p, b->p) and towards t (a->t, b->t), and they are not descendants of t. adjusting for a and b will allow us to estimate the causal effect of t on p with
+out confounding bias
+Content validation: MISMATCH
+
+```
