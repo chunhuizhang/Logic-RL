@@ -89,6 +89,10 @@ if __name__ == '__main__':
     def make_map_fn(split):
         def process_fn(example, idx):
             question = make_prefix(example, template_type=args.template_type)
+            solution = {
+                'answer': example['answer'], 
+                'question_type': example['question_type']
+            }
             data = {
                 "data_source": data_source,
                 "prompt": [{
@@ -98,7 +102,7 @@ if __name__ == '__main__':
                 "ability": "casual",
                 "reward_model": {
                     "style": "rule",
-                    "ground_truth": example['answer']
+                    "ground_truth": solution
                 },
                 "extra_info": {
                     'split': split,

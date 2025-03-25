@@ -81,79 +81,58 @@ def normalize_answer(answer: str) -> str:
     answer = re.sub(r'[.!?]$', '', answer)
     return answer
 
-def identify_answer_type(answer: str) -> str:
-    """Identify the type of answer"""
-    answer = normalize_answer(answer)
-    
-    # Yes/No type
-    if answer in ['yes', 'no']:
-        return 'YN'
-    
-    # Single number
-    if answer.isdigit():
-        return 'NUMBER'
-    
-    # Single letter option (A/B/C/D/E)
-    if re.match(r'^[a-e]$', answer):
-        return 'OPTION'
-    
-    # Set type (like {'T', 'M'})
-    if answer.startswith('{') and answer.endswith('}'):
-        return 'SET'
-    
-    # Graph/Path type
-    if '<->' in answer or '->' in answer or '<-' in answer:
-        return 'GRAPH'
-    
-    return 'TEXT'
 
-def match_answers(ground_truth: str, model_answer: str) -> bool:
+def match_answers(ground_truth: str, model_answer: str, question_type: str) -> bool:
     """Match ground truth with model answer based on answer type"""
     gt = normalize_answer(ground_truth)
     pred = normalize_answer(model_answer)
     
-    answer_type = identify_answer_type(gt)
-    
-    if answer_type == 'YN':
+    if question_type == 'YN' or question_type == 'EX':
         # return gt == pred or (gt in pred)
+        yn_pattern = r'^(yes|no)'
+        gt_match = re.match(yn_pattern, gt)
+        pred_match = re.match(yn_pattern, pred)
+        
+        if gt_match and pred_match:
+            print(gt_match.group(1), pred_match.group(1))
+            return gt_match.group(1) == pred_match.group(1)
         return gt == pred
     
-    elif answer_type == 'NUMBER':
+    
+    elif question_type == 'HM':
         return gt == pred
     
-    elif answer_type == 'OPTION':
+    elif question_type == 'MC':
         return gt == pred
     
-    elif answer_type == 'SET':
+    elif question_type in ['FA', 'FO']:
         # Convert string sets to actual sets for comparison
         try:
             gt_set = set(eval(gt))
             pred_set = set(eval(pred))
-            return gt_set == pred_set
+            return gt_set == pred_set 
         except:
-            return False
+            # Normalize graph representation
+            def normalize_graph(g: str) -> str:
+                # Remove spaces and convert to lowercase
+                g = ''.join(g.split()).lower()
+                # Sort multiple paths if it's a list
+                if g.startswith('[') and g.endswith(']'):
+                    try:
+                        paths = eval(g)
+                        return str(sorted(paths))
+                    except:
+                        return g
+                return g
+            try:
+                return normalize_graph(gt) == normalize_graph(pred)
+            except:
+                return False
     
-    elif answer_type == 'GRAPH':
-        # Normalize graph representation
-        def normalize_graph(g: str) -> str:
-            # Remove spaces and convert to lowercase
-            g = ''.join(g.split()).lower()
-            # Sort multiple paths if it's a list
-            if g.startswith('[') and g.endswith(']'):
-                try:
-                    paths = eval(g)
-                    return str(sorted(paths))
-                except:
-                    return g
-            return g
-        
-        return normalize_graph(gt) == normalize_graph(pred)
-    
-    else:  # TEXT type - exact match
-        return gt == pred
+    return gt == pred
 
 def compute_score(solution_str: str, 
-                 ground_truth: str,
+                 ground_truth: Dict[str, str],
                  format_reward: int = 1,
                  answer_reward: float = 1.0):
     """Computes comprehensive score for model response."""
@@ -170,18 +149,21 @@ def compute_score(solution_str: str,
     print(f"\n  Format validation: {'PASS' if format_correct else 'FAIL'}")
     print(f"  Format score: {format_score}")
     
+    gt_answer = ground_truth['answer']
+    gt_question_type = ground_truth['question_type']
+
     # Validate answer content
     answer_score = 0
     if format_correct and answer_text:
         print(f"\n[Content Validation]")
-        print(f"  Expected: {normalize_answer(ground_truth)}")
+        print(f"  Expected: {normalize_answer(gt_answer)}")
         print(f"  Predicted: {normalize_answer(answer_text)}")
         
-        if match_answers(ground_truth, answer_text):
+        if match_answers(gt_answer, answer_text, gt_question_type):
             answer_score = 2
             print("  Content validation: FULL MATCH")
         else:
-            answer_score = -1.5
+            answer_score = -2
             print("  Content validation: MISMATCH")
     else:
         answer_score = -2
@@ -196,3 +178,7 @@ def compute_score(solution_str: str,
     print("="*80 + "\n")
     
     return total_score
+
+if __name__ == "__main__":
+    assert match_answers('yes', 'yes, c is a node in the graph. there is an edge c->o, which means there is a directed edge from c to o', 'YN')
+    assert match_answers('no', 'no, x->h is not an edge of this graph', 'YN')

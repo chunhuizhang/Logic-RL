@@ -5,7 +5,7 @@ set -x
 source ~/anaconda3/etc/profile.d/conda.sh
 conda activate casual
 
-
+DATE=$(date +%Y%m%d)
 export VLLM_ATTENTION_BACKEND=XFORMERS
 
 MODEL_NAMES=("Qwen/Qwen2.5-7B-Instruct" "Qwen/Qwen2.5-3B-Instruct")
@@ -47,7 +47,7 @@ for MODEL_NAME in "${MODEL_NAMES[@]}"; do
         trainer.n_gpus_per_node=4 \
         trainer.nnodes=1 \
         trainer.default_hdfs_dir=null \
-        trainer.save_freq=10 \
-        trainer.test_freq=10 \
-        trainer.total_epochs=2 $@ 2>&1 | tee grpo.log
+        trainer.save_freq=50 \
+        trainer.test_freq=5 \
+        trainer.total_epochs=3 $@ 2>&1 | tee grpo_${MODEL_NAME}_${ROLLOUT_N}_${DATE}.log
 done
