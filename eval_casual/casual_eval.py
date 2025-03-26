@@ -283,7 +283,7 @@ def eval_model(model_path, data_path, output_dir, tp):
         example['model_answer'] = model_answer
         gt_answer = example['answer']
         question_type = example['question_type']
-        score = compute_score(model_answer, example['reward_model']['ground_truth'], question_type)
+        score = compute_score(model_answer, example['reward_model']['ground_truth'])
         example['rule_accuracy'] = score == 3
         correct_count += example['rule_accuracy']
         results.append(example)
