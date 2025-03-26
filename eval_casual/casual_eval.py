@@ -2,7 +2,7 @@ import argparse
 import os
 import re
 import pandas as pd
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict
 from vllm import LLM, SamplingParams
 from datasets import load_dataset, Dataset
 from transformers import AutoTokenizer
@@ -276,20 +276,28 @@ def eval_model(model_path, data_path, output_dir, tp):
 
     model_results = llm.generate(eval_prompts, sampling_params, use_tqdm=True)
 
+    correct_count = 0
+    results = []
     for example, result in zip(dataset, model_results):
         model_answer = result.outputs[0].text
         example['model_answer'] = model_answer
         gt_answer = example['answer']
         question_type = example['question_type']
-        score = compute_score(model_answer, gt_answer, question_type)
-        example['']
+        score = compute_score(model_answer, example['reward_model']['ground_truth'], question_type)
         example['rule_accuracy'] = score == 3
+        correct_count += example['rule_accuracy']
+        results.append(example)
 
+    print(f"Total correct count: {correct_count}")
+    print(f"Total accuracy: {correct_count / len(dataset)}")
+
+    results_df = pd.DataFrame(results)
+    results_df.to_csv(output_dir, index=False, encoding='utf-8-sig')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # global_step_500: Qwen2.5-7B-Instruct-1M-3e-7-True
-    parser.add_argument("--model_path", type=str, default='./global_step_500/')
+    parser.add_argument("--model_path", type=str, default='./checkpoints/GRPO_casual_clear/Qwen2.5-7B-Instruct_16/actor/global_step_840/')
     parser.add_argument("--data_path", type=str, default='./data/casual/test.parquet')
     parser.add_argument("--output_dir", type=str, default='./eval_casual/results/')
     parser.add_argument('--tp', type=int, default=2)
