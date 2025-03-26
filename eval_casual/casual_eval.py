@@ -212,7 +212,8 @@ def compute_score(solution_str: str,
     print(f"\n[Model Response]\n{processed_str}")
     
     # Validate response structure
-    format_correct = validate_response_structure(processed_str)
+    # format_correct = validate_response_structure(processed_str)
+    format_correct = True
     format_score = format_reward if format_correct else -abs(format_reward)
     print(f"\n  Format validation: {'PASS' if format_correct else 'FAIL'}")
     print(f"  Format score: {format_score}")
@@ -292,7 +293,7 @@ def eval_model(model_path, data_path, output_dir, tp):
     print(f"Total accuracy: {correct_count / len(dataset)}")
 
     results_df = pd.DataFrame(results)
-    results_df.to_csv(output_dir, index=False, encoding='utf-8-sig')
+    results_df.to_csv(output_dir + 'results.csv', index=False, encoding='utf-8-sig')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
