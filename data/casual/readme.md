@@ -69,3 +69,6 @@ Predicted: x->g, g->x
 Content validation: MISMATCH
 
 ```
+
+- update 0326
+    - {X, O, P, D, K}, {H} => {'k}', 'd', 'o', '{h', 'p', 'x'}

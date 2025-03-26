@@ -1,5 +1,11 @@
+import argparse
+import os
 import re
-from typing import Dict, Tuple, Optional
+import pandas as pd
+from typing import Tuple, Optional
+from vllm import LLM, SamplingParams
+from datasets import load_dataset, Dataset
+from transformers import AutoTokenizer
 
 def extract_solution(solution_str: str) -> Tuple[Optional[str], str]:
     """Extracts the final answer from the model's response string.
@@ -11,24 +17,24 @@ def extract_solution(solution_str: str) -> Tuple[Optional[str], str]:
         Tuple containing (extracted_answer, processed_string)
     """
     # Split response to isolate assistant output
-    if "Assistant:" in solution_str:
-        processed_str = solution_str.split("Assistant:", 1)[1]
-    elif "<|im_start|>assistant" in solution_str:
-        processed_str = solution_str.split("<|im_start|>assistant", 1)[1]
-    else:
-        print("[Error] Failed to locate model response header")
-        return None, solution_str
+    # if "Assistant:" in solution_str:
+    #     processed_str = solution_str.split("Assistant:", 1)[1]
+    # elif "<|im_start|>assistant" in solution_str:
+    #     processed_str = solution_str.split("<|im_start|>assistant", 1)[1]
+    # else:
+    #     print("[Error] Failed to locate model response header")
+    #     return None, solution_str
 
     # Extract final answer using XML-style tags
     answer_pattern = r'<answer>(.*?)</answer>'
-    matches = list(re.finditer(answer_pattern, processed_str, re.DOTALL))
+    matches = list(re.finditer(answer_pattern, solution_str, re.DOTALL))
     
     if not matches:
         print("[Error] No valid answer tags found")
-        return None, processed_str
+        return None, solution_str
         
     final_answer = matches[-1].group(1).strip()
-    return final_answer, processed_str
+    return final_answer, solution_str
 
 
 def validate_response_structure(processed_str: str) -> bool:
@@ -244,23 +250,50 @@ def compute_score(solution_str: str,
     
     return total_score
 
+def eval_model(model_path, data_path, output_dir, tp):
+    llm = LLM(model=model_path, tokenizer=model_path, max_model_len=4096, tensor_parallel_size=tp)
+    sampling_params = SamplingParams(
+        max_tokens=4096,
+        temperature=0.6,
+        top_k=-1,
+        top_p=0.95,
+    )
+
+    if data_path.endswith('.parquet'):
+        dataset = load_dataset('parquet', data_files=data_path)['train']
+    elif data_path.endswith('.csv'):
+        dataset = load_dataset('csv', data_files=data_path)['train']
+    elif data_path.endswith('.xlsx'):
+        dataset = pd.read_excel(data_path)
+        dataset = Dataset.from_pandas(dataset)
+    else:
+        raise ValueError(f"Unsupported file type: {data_path}")
+
+    eval_prompts = []
+    for example in dataset:
+        prompt = example['prompt'][0]['content']
+        eval_prompts.append(prompt)
+
+    model_results = llm.generate(eval_prompts, sampling_params, use_tqdm=True)
+
+    for example, result in zip(dataset, model_results):
+        model_answer = result.outputs[0].text
+        example['model_answer'] = model_answer
+        gt_answer = example['answer']
+        question_type = example['question_type']
+        score = compute_score(model_answer, gt_answer, question_type)
+        example['']
+        example['rule_accuracy'] = score == 3
+
+
 if __name__ == "__main__":
-    # YN
-    assert match_answers('yes', 'yes, c is a node in the graph. there is an edge c->o, which means there is a directed edge from c to o', 'YN')[2]
-    assert match_answers('no', 'no, x->h is not an edge of this graph', 'YN')[2]
-
-    # HM
-    assert match_answers('7', 'the graph has 7 nodes', 'HM')[2]
-
-    # MC
-    assert match_answers('a', 'a. the graph has 7 nodes', 'MC')[2]
-    
-    # FA/FO tests
-    assert match_answers("{'r', 'l'}", "the maximal valid backdoor adjustment set for treatment s and outcome g in this admg is {l, r}. this set blocks all backdoor paths from s to g.", 'FA')[2]
-    assert match_answers("{'x', 'j', 'r'}", "{j, r, x}", 'FA')[2]
-    assert match_answers("[{'a', 'b'}]", "the frontdoor adjustment set for treatment t and outcome p in the given dag is {a, b}. variables a and b are both directed towards p (a->p, b->p) and towards t (a->t, b->t), and they are not descendants of t.", 'FA')[2]
-    assert match_answers("{'s'}", "s", 'FA')[2]
-    assert match_answers("{'x', 'j', 'r'}", "j, r, x", 'FA')[2]
-    assert match_answers("j, n, k, t, w", "one valid topological ordering of the graph is: j, n, k, t, w", 'FO')[2]
-    assert match_answers("h, k, d, q, f, u", "one valid topological ordering of the graph is: h, d, k, f, q, u", 'FO')[2]
-    
+    parser = argparse.ArgumentParser()
+    # global_step_500: Qwen2.5-7B-Instruct-1M-3e-7-True
+    parser.add_argument("--model_path", type=str, default='./global_step_500/')
+    parser.add_argument("--data_path", type=str, default='./data/casual/test.parquet')
+    parser.add_argument("--output_dir", type=str, default='./eval_casual/results/')
+    parser.add_argument('--tp', type=int, default=2)
+    args = parser.parse_args()
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+    eval_model(args.model_path, args.data_path, args.output_dir, args.tp)
